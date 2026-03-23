@@ -260,16 +260,14 @@ body {
   font-weight: 600;
 }
 
-.project-link {
-  display: inline-block;
-  margin-top: 10px;
-  font-size: 0.8rem;
-  color: var(--primary);
-  font-weight: 600;
+.project-title-link {
+  color: var(--dark);
   text-decoration: none;
+  transition: color 0.2s;
 }
 
-.project-link:hover {
+.project-title-link:hover {
+  color: var(--primary);
   text-decoration: underline;
 }
 
