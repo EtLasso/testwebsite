@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ecapp – Live Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #e8eaf0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; }
+    #ecapp-root { min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="ecapp-root"></div>
+
+  <script>
+  (function bootEcapp() {
+    const USERS = [{ id: 1, name: "admin", pw: "admin123", role: "Administrator" }];
+    let session = null;
+    let nextId = 4;
+    let nextActId = 5;
+    let selectedContactId = null;
+    let activeTab = "kontakte";
+    let searchTerm = "";
+    let failCount = 0;
+    let lockUntil = 0;
+
+    let contacts = [
+      { id:1, firma:"Mustermann GmbH", ansprechpartner:"Max Mustermann", strasse:"Hauptstr. 1", plz:"10115", ort:"Berlin", telefon:"030-123456", mobil:"0170-111222", email:"max@mustermann.de", website:"www.mustermann.de", notizen:"Stammkunde seit 2020", erstelltVon:"admin", erstelltAm:"2026-02-23", nebenkontakte:[2] },
+      { id:2, firma:"Schmidt & Partner", ansprechpartner:"Erika Schmidt", strasse:"Bahnhofstr. 42", plz:"20095", ort:"Hamburg", telefon:"040-654321", mobil:"0171-333444", email:"e.schmidt@schmidt-partner.de", website:"www.schmidt-partner.de", notizen:"Beratungsmandat Q1", erstelltVon:"admin", erstelltAm:"2026-02-23", nebenkontakte:[1] },
+      { id:3, firma:"TechSolutions AG", ansprechpartner:"Klaus Weber", strasse:"Innovationspark 7", plz:"80333", ort:"München", telefon:"089-789012", mobil:"0172-555666", email:"k.weber@techsolutions.ag", website:"www.techsolutions.ag", notizen:"Potentieller Neukunde", erstelltVon:"admin", erstelltAm:"2026-02-24", nebenkontakte:[] }
+    ];
+
+    let activities = [
+      { id:1, kontaktId:1, art:"Telefonat", datum:"2026-02-25", beschreibung:"Jahresgespräch – Vertragsverlängerung besprochen", erstelltVon:"admin" },
+      { id:2, kontaktId:1, art:"E-Mail",    datum:"2026-02-26", beschreibung:"Angebot für Q2-Beratung versendet", erstelltVon:"admin" },
+      { id:3, kontaktId:2, art:"Meeting",   datum:"2026-02-28", beschreibung:"Erstgespräch Beratungsmandat, sehr positiv", erstelltVon:"admin" },
+      { id:4, kontaktId:3, art:"Telefonat", datum:"2026-03-01", beschreibung:"Kaltakquise – Interesse an Webentwicklung", erstelltVon:"admin" }
+    ];
+
+    const root = document.getElementById("ecapp-root");
+
+    const h = (tag, attrs, inner) => {
+      const el = document.createElement(tag);
+      Object.entries(attrs || {}).forEach(([k, v]) => {
+        if (k === "style") el.style.cssText = v;
+        else if (k.startsWith("on")) el.addEventListener(k.slice(2).toLowerCase(), v);
+        else el.setAttribute(k, v);
+      });
+      if (typeof inner === "string") el.innerHTML = inner;
+      else if (Array.isArray(inner)) inner.forEach(c => c && el.appendChild(c));
+      return el;
+    };
+
+    const btn = (label, col, cb, small) => {
+      const b = h("button", { style: `background:${col};color:#fff;border:none;padding:${small?"3px 8px":"5px 12px"};border-radius:4px;cursor:pointer;font-size:${small?"11":"12"}px;font-weight:600;` }, label);
+      b.onclick = cb;
+      return b;
+    };
+
+    // ── LOGIN ──────────────────────────────────────────────────
+    function renderLogin() {
+      root.innerHTML = "";
+      const wrap = h("div", { style: "display:flex;align-items:center;justify-content:center;min-height:100vh;background:#e8eaf0;" });
+      const box  = h("div", { style: "background:#fff;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.15);width:320px;overflow:hidden;" });
+      const hdr  = h("div", { style: "background:#1e2761;padding:22px 24px;color:#fff;text-align:center;" },
+        '<div style="font-size:20px;font-weight:800;">ecapp</div><div style="font-size:12px;opacity:.7;margin-top:4px;">Kontaktverwaltung v1.0</div>');
+      const body = h("div", { style: "padding:24px;" });
+
+      const mkLbl = t => h("label", { style: "display:block;font-size:11px;font-weight:700;color:#374151;margin-bottom:4px;" }, t);
+      const mkInp = (type, val) => h("input", { type, style: "width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:4px;padding:7px 10px;font-size:13px;margin-bottom:12px;", value: val });
+
+      const inpU = mkInp("text", "admin");
+      const inpP = mkInp("password", "admin123");
+      inpP.style.marginBottom = "16px";
+      const errDiv = h("div", { style: "color:#dc2626;font-size:11px;min-height:16px;margin-bottom:8px;text-align:center;" }, "");
+      const loginBtn = btn("Anmelden", "#1e2761", doLogin);
+      loginBtn.style.cssText += "width:100%;padding:9px;";
+      const hint = h("div", { style: "margin-top:12px;font-size:10px;color:#9ca3af;text-align:center;" }, "Demo: admin / admin123");
+
+      function doLogin() {
+        const now = Date.now();
+        if (now < lockUntil) { errDiv.textContent = `Gesperrt für ${Math.ceil((lockUntil-now)/1000)} Sek...`; return; }
+        const user = USERS.find(x => x.name === inpU.value.trim() && x.pw === inpP.value);
+        if (user) { failCount = 0; session = user; renderMain(); }
+        else {
+          failCount++;
+          if (failCount >= 3) { lockUntil = Date.now()+5000; failCount = 0; errDiv.textContent = "3 Fehlversuche – 5 Sek. gesperrt!"; setTimeout(()=>errDiv.textContent="",5100); }
+          else errDiv.textContent = `Ungültige Zugangsdaten. (${failCount}/3)`;
+        }
+      }
+      inpP.addEventListener("keydown", e => { if (e.key==="Enter") doLogin(); });
+      [mkLbl("Benutzername"), inpU, mkLbl("Passwort"), inpP, errDiv, loginBtn, hint].forEach(x => body.appendChild(x));
+      [hdr, body].forEach(x => box.appendChild(x));
+      wrap.appendChild(box);
+      root.appendChild(wrap);
+      inpU.focus();
+    }
+
+    // ── MAIN APP ───────────────────────────────────────────────
+    function renderMain() {
+      root.innerHTML = "";
+      root.style.cssText = "display:flex;flex-direction:column;min-height:100vh;background:#f3f4f6;";
+
+      const menu = h("div", { style: "background:#1e2761;display:flex;align-items:center;padding:0 12px;height:30px;position:relative;z-index:50;" }, [
+        h("span", { style: "color:#fff;font-weight:800;font-size:13px;margin-right:16px;" }, "ecapp"),
+        makeMenu("Datei", [
+          { label: "📤 CSV exportieren (alle)", action: () => doCsvExport(contacts) },
+          { label: "📤 CSV exportieren (Auswahl)", action: () => { const c=contacts.find(x=>x.id===selectedContactId); c?doCsvExport([c]):alert("Bitte zuerst einen Kontakt auswählen."); } },
+          { sep: true },
+          { label: "🚪 Abmelden", action: () => { session=null; renderLogin(); } }
+        ]),
+        makeMenu("Kontakte", [
+          { label: "➕ Neuer Kontakt",    action: () => openKontaktDialog(null) },
+          { label: "✏️ Kontakt bearbeiten", action: () => { const c=contacts.find(x=>x.id===selectedContactId); c?openKontaktDialog(c):alert("Bitte zuerst einen Kontakt auswählen."); } },
+          { label: "🗑️ Kontakt löschen",  action: () => { if(!selectedContactId){alert("Bitte zuerst einen Kontakt auswählen.");return;} if(confirm("Kontakt wirklich löschen?")){contacts=contacts.filter(x=>x.id!==selectedContactId);activities=activities.filter(a=>a.kontaktId!==selectedContactId);contacts.forEach(c=>c.nebenkontakte=c.nebenkontakte.filter(n=>n!==selectedContactId));selectedContactId=null;renderMain();} } },
+          { sep: true },
+          { label: "🔄 Demo zurücksetzen", action: () => { if(confirm("Demo-Daten zurücksetzen?")){ contacts=[{id:1,firma:"Mustermann GmbH",ansprechpartner:"Max Mustermann",strasse:"Hauptstr. 1",plz:"10115",ort:"Berlin",telefon:"030-123456",mobil:"0170-111222",email:"max@mustermann.de",website:"www.mustermann.de",notizen:"Stammkunde seit 2020",erstelltVon:"admin",erstelltAm:"2026-02-23",nebenkontakte:[2]},{id:2,firma:"Schmidt & Partner",ansprechpartner:"Erika Schmidt",strasse:"Bahnhofstr. 42",plz:"20095",ort:"Hamburg",telefon:"040-654321",mobil:"0171-333444",email:"e.schmidt@schmidt-partner.de",website:"www.schmidt-partner.de",notizen:"Beratungsmandat Q1",erstelltVon:"admin",erstelltAm:"2026-02-23",nebenkontakte:[1]},{id:3,firma:"TechSolutions AG",ansprechpartner:"Klaus Weber",strasse:"Innovationspark 7",plz:"80333",ort:"München",telefon:"089-789012",mobil:"0172-555666",email:"k.weber@techsolutions.ag",website:"www.techsolutions.ag",notizen:"Potentieller Neukunde",erstelltVon:"admin",erstelltAm:"2026-02-24",nebenkontakte:[]}];activities=[{id:1,kontaktId:1,art:"Telefonat",datum:"2026-02-25",beschreibung:"Jahresgespräch – Vertragsverlängerung besprochen",erstelltVon:"admin"},{id:2,kontaktId:1,art:"E-Mail",datum:"2026-02-26",beschreibung:"Angebot für Q2-Beratung versendet",erstelltVon:"admin"},{id:3,kontaktId:2,art:"Meeting",datum:"2026-02-28",beschreibung:"Erstgespräch Beratungsmandat, sehr positiv",erstelltVon:"admin"},{id:4,kontaktId:3,art:"Telefonat",datum:"2026-03-01",beschreibung:"Kaltakquise – Interesse an Webentwicklung",erstelltVon:"admin"}];nextId=4;nextActId=5;selectedContactId=null;searchTerm="";activeTab="kontakte";renderMain();} } }
+        ]),
+        h("div", { style: "flex:1" }, ""),
+        h("span", { style: "color:rgba(255,255,255,.6);font-size:11px;" }, `Angemeldet: ${session.name}`),
+        h("button", { style: "background:transparent;border:none;color:rgba(255,255,255,.6);cursor:pointer;font-size:11px;margin-left:12px;", onclick: () => { session=null; renderLogin(); } }, "Abmelden")
+      ]);
+
+      const tabBar = h("div", { style: "background:#e5e7eb;display:flex;border-bottom:2px solid #1e2761;padding:0 10px;padding-top:6px;gap:2px;" });
+      const tabK = makeTab("Kontakte",   activeTab==="kontakte",    () => { activeTab="kontakte";    updateTabs(); renderTabContent(); });
+      const tabA = makeTab("Aktivitäten", activeTab==="aktivitaeten", () => { activeTab="aktivitaeten"; updateTabs(); renderTabContent(); });
+      tabBar.append(tabK, tabA);
+
+      function updateTabs() {
+        [[tabK,"kontakte"],[tabA,"aktivitaeten"]].forEach(([t,id]) => {
+          const on = activeTab===id;
+          t.style.background = on?"#fff":"#d1d5db";
+          t.style.color = on?"#1e2761":"#6b7280";
+          t.style.fontWeight = on?"700":"400";
+        });
+      }
+
+      const tabContent = h("div", { style: "flex:1;overflow:auto;" });
+      const statusBar  = h("div", { id:"statusbar", style:"background:#1e2761;color:rgba(255,255,255,.8);font-size:11px;padding:3px 12px;display:flex;gap:20px;" });
+
+      root.append(menu, tabBar, tabContent, statusBar);
+
+      function renderTabContent() {
+        tabContent.innerHTML = "";
+        activeTab==="kontakte" ? renderKontakteTab(tabContent) : renderAktivitaetenTab(tabContent);
+        updateStatus();
+      }
+      function updateStatus() {
+        const f = contacts.filter(c => matchSearch(c));
+        statusBar.innerHTML = `<span>${f.length} Kontakte angezeigt</span><span>|</span><span>Benutzer: ${session.name}</span><span>|</span><span>ecapp v1.0 · C# .NET 9 · MySQL 8.0</span>`;
+      }
+      renderTabContent();
+    }
+
+    function makeMenu(label, items) {
+      const wrap = h("div", { style: "position:relative;height:30px;display:flex;align-items:center;" });
+      const b = h("div", { style: "color:rgba(255,255,255,.85);font-size:12px;padding:0 10px;height:30px;display:flex;align-items:center;cursor:pointer;user-select:none;" }, label+" ▾");
+      b.onmouseenter = () => b.style.background="rgba(255,255,255,.15)";
+      b.onmouseleave = () => b.style.background="transparent";
+      const dd = h("div", { style: "display:none;position:absolute;top:30px;left:0;background:#fff;border:1px solid #ccc;border-radius:4px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:210px;z-index:10001;padding:4px 0;" });
+      items.forEach(item => {
+        if (item.sep) { dd.appendChild(h("div", { style: "border-top:1px solid #e5e7eb;margin:4px 0;" })); return; }
+        const row = h("div", { style: "padding:7px 16px;font-size:12px;color:#1e2761;cursor:pointer;white-space:nowrap;" }, item.label);
+        row.onmouseenter = () => row.style.background="#e8ecf8";
+        row.onmouseleave = () => row.style.background="transparent";
+        row.onclick = () => { closeAllMenus(); item.action(); };
+        dd.appendChild(row);
+      });
+      let open = false;
+      b.onclick = e => { e.stopPropagation(); closeAllMenus(); dd.style.display="block"; open=true; wrap._close=()=>{dd.style.display="none";open=false;}; (document.body._openMenus=document.body._openMenus||[]).push(wrap); };
+      wrap.append(b, dd);
+      return wrap;
+    }
+    function closeAllMenus() { (document.body._openMenus||[]).forEach(w=>w._close&&w._close()); document.body._openMenus=[]; }
+    document.addEventListener("click", closeAllMenus);
+
+    function makeTab(label, active, cb) {
+      const t = h("div", { style: `padding:5px 18px;border-radius:4px 4px 0 0;cursor:pointer;font-size:12px;font-weight:${active?"700":"400"};background:${active?"#fff":"#d1d5db"};color:${active?"#1e2761":"#6b7280"};border:1px solid #c5c7d0;border-bottom:none;` }, label);
+      t.onclick = cb;
+      return t;
+    }
+
+    function matchSearch(c) {
+      if (!searchTerm) return true;
+      const q = searchTerm.toLowerCase();
+      return [c.firma,c.ansprechpartner,c.ort,c.email,c.telefon,c.website].some(f=>f&&f.toLowerCase().includes(q));
+    }
+
+    // ── KONTAKTE TAB ──────────────────────────────────────────
+    function renderKontakteTab(container) {
+      const wrap  = h("div", { style: "display:flex;height:calc(100vh - 90px);" });
+      const left  = h("div", { style: "width:380px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid #d1d5db;background:#fff;" });
+      const right = h("div", { style: "flex:1;padding:14px;overflow:auto;background:#fafafa;" });
+
+      const toolbar = h("div", { style: "padding:8px 10px;background:#f9fafb;border-bottom:1px solid #e5e7eb;display:flex;gap:6px;align-items:center;flex-wrap:wrap;" });
+      const searchBox = h("input", { type:"text", placeholder:"🔍 Suche (Firma, Name, Ort, E-Mail...)", style:"flex:1;min-width:140px;border:1px solid #d1d5db;border-radius:4px;padding:4px 8px;font-size:12px;", value: searchTerm });
+      searchBox.oninput = () => { searchTerm = searchBox.value; refreshList(); };
+      const btnNeu = btn("+ Neu", "#1e2761", () => openKontaktDialog(null), true);
+      const btnExp = btn("CSV Export", "#065f46", () => doCsvExport(contacts.filter(matchSearch)), true);
+      toolbar.append(searchBox, btnNeu, btnExp);
+
+      const grid = h("div", { style: "flex:1;overflow:auto;" });
+      const tbl  = h("table", { style: "width:100%;border-collapse:collapse;font-size:12px;" });
+      tbl.innerHTML = '<thead><tr style="background:#1e2761;color:#fff;"><th style="padding:6px 8px;text-align:left;font-size:10px;">Firma</th><th style="padding:6px 8px;font-size:10px;">Ansprechpartner</th><th style="padding:6px 8px;font-size:10px;">Ort</th><th style="padding:6px 8px;font-size:10px;">E-Mail</th></tr></thead>';
+      const tbody = h("tbody", {});
+      tbl.appendChild(tbody);
+      grid.appendChild(tbl);
+      left.append(toolbar, grid);
+
+      function refreshList() {
+        tbody.innerHTML = "";
+        contacts.filter(matchSearch).forEach((c, i) => {
+          const tr = h("tr", { style: `cursor:pointer;background:${selectedContactId===c.id?"#dbeafe":i%2===0?"#f9fafb":"#fff"};` },
+            `<td style="padding:5px 8px;font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.firma}</td><td style="padding:5px 8px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.ansprechpartner}</td><td style="padding:5px 8px;">${c.ort}</td><td style="padding:5px 8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.email}</td>`);
+          tr.onclick = () => { selectedContactId=c.id; refreshList(); renderDetail(right, c); };
+          tr.onmouseenter = () => { if(selectedContactId!==c.id) tr.style.background="#eff6ff"; };
+          tr.onmouseleave = () => { tr.style.background = selectedContactId===c.id?"#dbeafe":i%2===0?"#f9fafb":"#fff"; };
+          tbody.appendChild(tr);
+        });
+        const sb=document.getElementById("statusbar");
+        if(sb) sb.innerHTML=`<span>${contacts.filter(matchSearch).length} Kontakte angezeigt</span><span>|</span><span>Benutzer: ${session.name}</span><span>|</span><span>ecapp v1.0</span>`;
+      }
+
+      function renderDetail(panel, c) {
+        panel.innerHTML = "";
+        const nk = c.nebenkontakte.map(id=>contacts.find(x=>x.id===id)).filter(Boolean);
+        const actCount = activities.filter(a=>a.kontaktId===c.id).length;
+        panel.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+            <div><div style="font-size:16px;font-weight:800;color:#1e2761;">${c.firma}</div><div style="color:#6b7280;font-size:12px;">${c.ansprechpartner} · ${c.ort}</div></div>
+            <div id="detail-btns" style="display:flex;gap:6px;"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin-bottom:12px;">
+            <div><span style="color:#6b7280;">Straße:</span> ${c.strasse}</div>
+            <div><span style="color:#6b7280;">PLZ/Ort:</span> ${c.plz} ${c.ort}</div>
+            <div><span style="color:#6b7280;">Telefon:</span> ${c.telefon}</div>
+            <div><span style="color:#6b7280;">Mobil:</span> ${c.mobil}</div>
+            <div><span style="color:#6b7280;">E-Mail:</span> <a href="mailto:${c.email}" style="color:#1e2761;">${c.email}</a></div>
+            <div><span style="color:#6b7280;">Website:</span> ${c.website}</div>
+            <div style="grid-column:1/-1;"><span style="color:#6b7280;">Notizen:</span> ${c.notizen||"–"}</div>
+          </div>
+          <div style="font-size:11px;color:#9ca3af;margin-bottom:12px;">Erstellt von: ${c.erstelltVon} · ${c.erstelltAm}</div>
+          ${nk.length?`<div style="font-size:11px;font-weight:700;color:#1e2761;margin-bottom:6px;">Nebenkontakte (${nk.length})</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">${nk.map(n=>`<span style="background:#dbeafe;color:#1e2761;border-radius:12px;padding:2px 10px;font-size:11px;">${n.firma}</span>`).join("")}</div>`:""}
+          <div style="font-size:11px;font-weight:700;color:#1e2761;margin-bottom:4px;">Aktivitäten (${actCount})</div>
+          <div id="act-mini"></div>`;
+
+        panel.querySelector("#detail-btns").append(
+          btn("Bearbeiten", "#1e2761", ()=>openKontaktDialog(c), true),
+          btn("Löschen", "#dc2626", ()=>{ if(!confirm("Kontakt wirklich löschen?"))return; contacts=contacts.filter(x=>x.id!==c.id); activities=activities.filter(a=>a.kontaktId!==c.id); contacts.forEach(x=>x.nebenkontakte=x.nebenkontakte.filter(n=>n!==c.id)); selectedContactId=null; refreshList(); panel.innerHTML='<div style="color:#9ca3af;text-align:center;margin-top:60px;">Kontakt gelöscht.</div>'; }, true)
+        );
+
+        const actMini = panel.querySelector("#act-mini");
+        const acts = activities.filter(a=>a.kontaktId===c.id).sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,4);
+        if (!acts.length) { actMini.innerHTML='<div style="color:#9ca3af;font-size:11px;">Keine Aktivitäten</div>'; }
+        else acts.forEach(a => {
+          actMini.appendChild(h("div", { style:"background:#f3f4f6;border-radius:4px;padding:5px 8px;margin-bottom:4px;font-size:11px;display:flex;gap:8px;" },
+            `<span style="background:#1e2761;color:#fff;border-radius:3px;padding:1px 6px;font-size:10px;">${a.art}</span><span style="color:#6b7280;">${a.datum}</span><span>${a.beschreibung}</span>`));
+        });
+      }
+
+      refreshList();
+      wrap.append(left, right);
+      container.appendChild(wrap);
+
+      if (selectedContactId) {
+        const c = contacts.find(x=>x.id===selectedContactId);
+        if (c) renderDetail(right, c);
+      } else {
+        right.innerHTML = '<div style="color:#9ca3af;text-align:center;margin-top:60px;font-size:13px;">← Kontakt auswählen</div>';
+      }
+    }
+
+    // ── AKTIVITÄTEN TAB ──────────────────────────────────────
+    function renderAktivitaetenTab(container) {
+      const sel = contacts.find(c=>c.id===selectedContactId) || contacts[0];
+      const wrap = h("div", { style:"padding:12px;background:#fff;min-height:calc(100vh - 90px);" });
+
+      const selRow = h("div", { style:"display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #e5e7eb;" });
+      selRow.appendChild(h("span", { style:"font-size:11px;font-weight:700;color:#374151;" }, "Kontakt:"));
+      const selBox = h("select", { style:"border:1px solid #d1d5db;border-radius:4px;padding:4px 8px;font-size:12px;min-width:200px;" });
+      contacts.forEach(c => { const o=document.createElement("option"); o.value=c.id; o.textContent=`${c.firma} – ${c.ansprechpartner}`; if(c.id===sel.id)o.selected=true; selBox.appendChild(o); });
+      selBox.onchange = () => { selectedContactId=parseInt(selBox.value); renderAktivitaetenTab(container); };
+      selRow.append(selBox, btn("+ Aktivität hinzufügen", "#1e2761", ()=>openAktivitaetDialog(parseInt(selBox.value)), true));
+
+      const acts = activities.filter(a=>a.kontaktId===sel.id).sort((a,b)=>b.datum.localeCompare(a.datum));
+      const listDiv = h("div", { style:"max-height:340px;overflow-y:auto;" });
+
+      if (!acts.length) {
+        listDiv.appendChild(h("div", { style:"color:#9ca3af;text-align:center;padding:40px;font-size:13px;" }, "Keine Aktivitäten für diesen Kontakt."));
+      } else {
+        const tbl = h("table", { style:"width:100%;border-collapse:collapse;font-size:12px;" });
+        tbl.innerHTML='<thead><tr style="background:#1e2761;color:#fff;"><th style="padding:6px 10px;font-size:10px;text-align:left;">Art</th><th style="padding:6px 10px;font-size:10px;text-align:left;">Datum</th><th style="padding:6px 10px;font-size:10px;text-align:left;">Beschreibung</th><th style="padding:6px 10px;font-size:10px;text-align:left;">Von</th><th style="padding:6px 10px;font-size:10px;">Aktion</th></tr></thead>';
+        const tb = h("tbody", {});
+        const COLS = { Telefonat:"#1d4ed8", Meeting:"#065f46", "E-Mail":"#92400e", Besuch:"#6d28d9", Sonstiges:"#374151" };
+        acts.forEach((a, i) => {
+          const tr = h("tr", { style:`background:${i%2===0?"#f9fafb":"#fff"};` });
+          tr.innerHTML=`<td style="padding:5px 10px;"><span style="background:${COLS[a.art]||"#374151"};color:#fff;border-radius:3px;padding:1px 8px;font-size:10px;font-weight:600;">${a.art}</span></td><td style="padding:5px 10px;color:#6b7280;">${a.datum}</td><td style="padding:5px 10px;">${a.beschreibung}</td><td style="padding:5px 10px;color:#6b7280;">${a.erstelltVon}</td><td style="padding:5px 10px;text-align:center;"></td>`;
+          tr.querySelector("td:last-child").appendChild(btn("✕", "#dc2626", ()=>{ activities=activities.filter(x=>x.id!==a.id); renderAktivitaetenTab(container); }, true));
+          tb.appendChild(tr);
+        });
+        tbl.appendChild(tb);
+        listDiv.appendChild(tbl);
+      }
+
+      const dndHint = h("div", { style:"margin-top:12px;border:2px dashed #d1d5db;border-radius:6px;padding:12px;text-align:center;color:#9ca3af;font-size:11px;background:#f9fafb;" },
+        "📎 Drag &amp; Drop: Dateien hierher ziehen, um sie einer Aktivität zuzuordnen<br><small>(In der echten C#-App werden Dateipfade in MySQL gespeichert und per Doppelklick geöffnet)</small>");
+      dndHint.ondragover = e => { e.preventDefault(); dndHint.style.background="#dbeafe"; dndHint.style.borderColor="#1e2761"; };
+      dndHint.ondragleave = () => { dndHint.style.background="#f9fafb"; dndHint.style.borderColor="#d1d5db"; };
+      dndHint.ondrop = e => { e.preventDefault(); dndHint.style.background="#f9fafb"; dndHint.style.borderColor="#d1d5db"; const f=[...e.dataTransfer.files]; if(f.length) alert(`Datei(en) erkannt:\n${f.map(x=>x.name).join("\n")}\n\n(In der echten App wird der Pfad in MySQL gespeichert)`); };
+
+      wrap.append(selRow, listDiv, dndHint);
+      container.appendChild(wrap);
+    }
+
+    // ── DIALOGE ───────────────────────────────────────────────
+    function openKontaktDialog(c) {
+      const isNew = !c;
+      const overlay = h("div", { style:"position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10001;display:flex;align-items:center;justify-content:center;" });
+      const dlg = h("div", { style:"background:#fff;border-radius:8px;width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);" });
+      const fields = [
+        {id:"firma",label:"Firma *",val:c?.firma||""},{id:"ansprechpartner",label:"Ansprechpartner",val:c?.ansprechpartner||""},
+        {id:"strasse",label:"Straße",val:c?.strasse||""},{id:"plz",label:"PLZ",val:c?.plz||""},{id:"ort",label:"Ort",val:c?.ort||""},
+        {id:"telefon",label:"Telefon",val:c?.telefon||""},{id:"mobil",label:"Mobil",val:c?.mobil||""},
+        {id:"email",label:"E-Mail",val:c?.email||""},{id:"website",label:"Website",val:c?.website||""},
+        {id:"notizen",label:"Notizen",val:c?.notizen||""}
+      ];
+      dlg.innerHTML=`<div style="background:#1e2761;color:#fff;padding:14px 18px;border-radius:8px 8px 0 0;font-weight:700;">${isNew?"Neuen Kontakt anlegen":"Kontakt bearbeiten"}</div>`;
+      const form = h("div", { style:"padding:16px 18px;display:grid;grid-template-columns:1fr 1fr;gap:8px;" });
+      const inps = {};
+      fields.forEach(f => {
+        const w = h("div", { style: f.id==="notizen"?"grid-column:1/-1;":"" });
+        w.appendChild(h("label", { style:"display:block;font-size:10px;font-weight:700;color:#374151;margin-bottom:3px;" }, f.label));
+        const inp = h("input", { type:"text", style:"width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:4px;padding:5px 8px;font-size:12px;", value:f.val });
+        w.appendChild(inp); form.appendChild(w); inps[f.id]=inp;
+      });
+      const errEl = h("div", { style:"grid-column:1/-1;color:#dc2626;font-size:11px;min-height:16px;" }, "");
+      form.appendChild(errEl);
+      const footer = h("div", { style:"padding:10px 18px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:8px;" });
+      footer.append(
+        btn("Abbrechen","#6b7280",()=>document.body.removeChild(overlay)),
+        btn("Speichern","#1e2761",()=>{
+          if(!inps.firma.value.trim()){errEl.textContent="Firma ist ein Pflichtfeld!";return;}
+          if(isNew){ contacts.push({id:nextId++,firma:inps.firma.value,ansprechpartner:inps.ansprechpartner.value,strasse:inps.strasse.value,plz:inps.plz.value,ort:inps.ort.value,telefon:inps.telefon.value,mobil:inps.mobil.value,email:inps.email.value,website:inps.website.value,notizen:inps.notizen.value,erstelltVon:session.name,erstelltAm:new Date().toISOString().slice(0,10),nebenkontakte:[]}); selectedContactId=nextId-1; }
+          else { Object.assign(c,{firma:inps.firma.value,ansprechpartner:inps.ansprechpartner.value,strasse:inps.strasse.value,plz:inps.plz.value,ort:inps.ort.value,telefon:inps.telefon.value,mobil:inps.mobil.value,email:inps.email.value,website:inps.website.value,notizen:inps.notizen.value}); selectedContactId=c.id; }
+          document.body.removeChild(overlay); renderMain();
+        })
+      );
+      dlg.append(form, footer);
+      overlay.appendChild(dlg);
+      overlay.onclick = e => { if(e.target===overlay) document.body.removeChild(overlay); };
+      document.body.appendChild(overlay);
+      inps.firma.focus();
+    }
+
+    function openAktivitaetDialog(kontaktId) {
+      const overlay = h("div", { style:"position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10001;display:flex;align-items:center;justify-content:center;" });
+      const dlg = h("div", { style:"background:#fff;border-radius:8px;width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3);" });
+      const k = contacts.find(c=>c.id===kontaktId);
+      dlg.innerHTML=`<div style="background:#1e2761;color:#fff;padding:14px 18px;border-radius:8px 8px 0 0;font-weight:700;">Aktivität hinzufügen<div style="font-size:11px;font-weight:400;opacity:.7;margin-top:2px;">${k?.firma}</div></div>`;
+      const form = h("div", { style:"padding:16px 18px;" });
+      const mkL = t => h("label", { style:"display:block;font-size:10px;font-weight:700;color:#374151;margin-bottom:3px;" }, t);
+      const selArt = h("select", { style:"width:100%;border:1px solid #d1d5db;border-radius:4px;padding:5px 8px;font-size:12px;margin-bottom:10px;" });
+      ["Telefonat","Meeting","E-Mail","Besuch","Sonstiges"].forEach(a=>{ const o=document.createElement("option"); o.value=a; o.textContent=a; selArt.appendChild(o); });
+      const inpDat = h("input", { type:"date", style:"width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:4px;padding:5px 8px;font-size:12px;margin-bottom:10px;", value:new Date().toISOString().slice(0,10) });
+      const inpDesc = h("textarea", { style:"width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:4px;padding:5px 8px;font-size:12px;height:70px;resize:vertical;margin-bottom:4px;" });
+      form.append(mkL("Art *"), selArt, mkL("Datum *"), inpDat, mkL("Beschreibung *"), inpDesc);
+      const footer = h("div", { style:"padding:10px 18px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:8px;" });
+      footer.append(
+        btn("Abbrechen","#6b7280",()=>document.body.removeChild(overlay)),
+        btn("Speichern","#1e2761",()=>{ if(!inpDesc.value.trim()){alert("Beschreibung ist ein Pflichtfeld!");return;} activities.push({id:nextActId++,kontaktId,art:selArt.value,datum:inpDat.value,beschreibung:inpDesc.value,erstelltVon:session.name}); document.body.removeChild(overlay); renderMain(); })
+      );
+      dlg.append(form, footer);
+      overlay.appendChild(dlg);
+      overlay.onclick = e => { if(e.target===overlay) document.body.removeChild(overlay); };
+      document.body.appendChild(overlay);
+    }
+
+    function doCsvExport(list) {
+      const rows=[["Firma","Ansprechpartner","Straße","PLZ","Ort","Telefon","Mobil","E-Mail","Website","Notizen"]];
+      list.forEach(c=>rows.push([c.firma,c.ansprechpartner,c.strasse,c.plz,c.ort,c.telefon,c.mobil,c.email,c.website,c.notizen||""]));
+      const csv=rows.map(r=>r.map(f=>`"${f.replace(/"/g,'""')}"`).join(";")).join("\r\n");
+      const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"})); a.download="ecapp_kontakte.csv"; a.click();
+      alert(`CSV exportiert: ${list.length} Kontakte (UTF-8 mit BOM für Excel)`);
+    }
+
+    renderLogin();
+  })();
+  </script>
+</body>
+</html>
