@@ -93,7 +93,7 @@
           <div class="projects-grid">
 
             <div class="project-card">
-              <h4><a class="project-title-link" href="https://github.com/EtLasso/ecapp" target="_blank" title="Kein Live-Preview verfügbar – öffnet GitHub-Repo">📇 ecapp</a></h4>
+              <h4><a class="project-title-link" href="#" onclick="openEcapp(event)">📇 ecapp</a></h4>
               <p>Kontaktverwaltungsapp zur übersichtlichen Verwaltung von Personen
               und deren Kontaktdaten.</p>
               <div class="tech-tags">
@@ -169,6 +169,14 @@
       <p>&copy; 2026 Max Mustermann – Lebenslauf</p>
     </footer>
 
+    <!-- ecapp Modal -->
+    <div id="ecapp-modal" class="modal-overlay" onclick="closeEcapp(event)">
+      <div class="modal-box">
+        <button class="modal-close" onclick="closeEcappBtn()">✕</button>
+        <iframe id="ecapp-frame" src="" allowfullscreen></iframe>
+      </div>
+    </div>
+
     <!-- Snake Modal -->
     <div id="snake-modal" class="modal-overlay" onclick="closeSnake(event)">
       <div class="modal-box">
@@ -178,6 +186,18 @@
     </div>
 
     <script>
+      function openEcapp(e) {
+        e.preventDefault();
+        document.getElementById('ecapp-frame').src = 'ecapp-demo.html';
+        document.getElementById('ecapp-modal').classList.add('active');
+      }
+      function closeEcappBtn() {
+        document.getElementById('ecapp-modal').classList.remove('active');
+        document.getElementById('ecapp-frame').src = '';
+      }
+      function closeEcapp(e) {
+        if (e.target === document.getElementById('ecapp-modal')) closeEcappBtn();
+      }
       function openSnake(e) {
         e.preventDefault();
         document.getElementById('snake-frame').src = 'https://etlasso.github.io/Snake';
