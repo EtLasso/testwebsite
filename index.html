@@ -7,39 +7,62 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <header>
-      <h1>Max Mustermann</h1>
-      <p class="subtitle">Softwareentwickler</p>
-    </header>
+    <div class="cv-wrapper">
 
-    <main>
-      <section id="kontakt">
-        <h2>Kontakt</h2>
-      </section>
+      <!-- ===== SIDEBAR ===== -->
+      <aside class="sidebar">
+        <div class="avatar">MM</div>
+        <h1>Max Mustermann</h1>
+        <p class="job-title">Softwareentwickler</p>
 
-      <section id="profil">
-        <h2>Profil</h2>
-      </section>
+        <!-- Kontakt -->
+        <div class="sidebar-section">
+          <h3>Kontakt</h3>
+          <ul class="contact-list">
+            <li><span class="icon">📍</span> Musterstraße 12, 80331 München</li>
+            <li><span class="icon">📞</span> +49 89 123 456 78</li>
+            <li><span class="icon">✉️</span> max.mustermann@example.de</li>
+            <li><span class="icon">🔗</span> linkedin.com/in/max-mustermann</li>
+            <li><span class="icon">🐙</span> github.com/maxmustermann</li>
+          </ul>
+        </div>
 
-      <section id="skills">
-        <h2>Skills</h2>
-      </section>
+        <!-- Skills (Platzhalter – werden in nächstem Commit befüllt) -->
+        <div class="sidebar-section" id="skills-sidebar"></div>
 
-      <section id="erfahrung">
-        <h2>Berufserfahrung</h2>
-      </section>
+        <!-- Sprachen (Platzhalter) -->
+        <div class="sidebar-section" id="sprachen-sidebar"></div>
+      </aside>
 
-      <section id="ausbildung">
-        <h2>Ausbildung</h2>
-      </section>
+      <!-- ===== HAUPTINHALT ===== -->
+      <div class="main-content">
 
-      <section id="projekte">
-        <h2>Projekte</h2>
-      </section>
-    </main>
+        <!-- Profil -->
+        <section id="profil">
+          <h2 class="section-title">Profil</h2>
+          <p class="profil-text">
+            Leidenschaftlicher Softwareentwickler mit über 6 Jahren Erfahrung in der
+            Entwicklung skalierbarer Web- und Backend-Anwendungen. Ich kombiniere
+            solides technisches Know-how mit einem Auge für saubere Architektur und
+            wartbaren Code. Teamplayer mit agilem Mindset, der Verantwortung übernimmt
+            und kontinuierlich dazulernt.
+          </p>
+        </section>
+
+        <!-- Erfahrung (Platzhalter) -->
+        <section id="erfahrung"></section>
+
+        <!-- Ausbildung (Platzhalter) -->
+        <section id="ausbildung"></section>
+
+        <!-- Projekte (Platzhalter) -->
+        <section id="projekte"></section>
+
+      </div>
+    </div>
 
     <footer>
-      <p>&copy; 2026 Max Mustermann</p>
+      <p>&copy; 2026 Max Mustermann – Lebenslauf</p>
     </footer>
   </body>
 </html>
