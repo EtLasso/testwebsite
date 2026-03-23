@@ -111,7 +111,7 @@
             </div>
 
             <div class="project-card">
-              <h4><a class="project-title-link" href="https://etlasso.github.io/Snake" target="_blank">🐍 Snake</a></h4>
+              <h4><a class="project-title-link" href="#" onclick="openSnake(event)">🐍 Snake</a></h4>
               <p>Klassisches Snake-Spiel als Konsolenprojekt, umgesetzt mit
               objektorientiertem C#-Design.</p>
               <div class="tech-tags">
@@ -168,5 +168,28 @@
     <footer>
       <p>&copy; 2026 Max Mustermann – Lebenslauf</p>
     </footer>
+
+    <!-- Snake Modal -->
+    <div id="snake-modal" class="modal-overlay" onclick="closeSnake(event)">
+      <div class="modal-box">
+        <button class="modal-close" onclick="closeSnakeBtn()">✕</button>
+        <iframe id="snake-frame" src="" allowfullscreen></iframe>
+      </div>
+    </div>
+
+    <script>
+      function openSnake(e) {
+        e.preventDefault();
+        document.getElementById('snake-frame').src = 'https://etlasso.github.io/Snake';
+        document.getElementById('snake-modal').classList.add('active');
+      }
+      function closeSnakeBtn() {
+        document.getElementById('snake-modal').classList.remove('active');
+        document.getElementById('snake-frame').src = '';
+      }
+      function closeSnake(e) {
+        if (e.target === document.getElementById('snake-modal')) closeSnakeBtn();
+      }
+    </script>
   </body>
 </html>
