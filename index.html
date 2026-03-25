@@ -102,7 +102,7 @@
             </div>
 
             <div class="project-card">
-              <h4><a class="project-title-link" href="https://github.com/EtLasso/ZooApp" target="_blank" title="Kein Live-Preview verfügbar – öffnet GitHub-Repo">🐾 ZooApp</a></h4>
+              <h4><a class="project-title-link" href="#" onclick="openZooApp(event)">🐾 ZooApp</a></h4>
               <p>Verwaltungsanwendung für einen Zoo – Tiere, Gehege und Pfleger
               objektorientiert modelliert.</p>
               <div class="tech-tags">
@@ -197,6 +197,14 @@
       </div>
     </div>
 
+    <!-- ZooApp Modal -->
+    <div id="zooapp-modal" class="modal-overlay" onclick="closeZooApp(event)">
+      <div class="modal-box">
+        <button class="modal-close" onclick="closeZooAppBtn()">✕</button>
+        <iframe id="zooapp-frame" src="" allowfullscreen></iframe>
+      </div>
+    </div>
+
     <script>
       function openEcapp(e) {
         e.preventDefault();
@@ -221,6 +229,18 @@
       }
       function closeSnake(e) {
         if (e.target === document.getElementById('snake-modal')) closeSnakeBtn();
+      }
+      function openZooApp(e) {
+        e.preventDefault();
+        document.getElementById('zooapp-frame').src = 'zooapp-demo.html';
+        document.getElementById('zooapp-modal').classList.add('active');
+      }
+      function closeZooAppBtn() {
+        document.getElementById('zooapp-modal').classList.remove('active');
+        document.getElementById('zooapp-frame').src = '';
+      }
+      function closeZooApp(e) {
+        if (e.target === document.getElementById('zooapp-modal')) closeZooAppBtn();
       }
     </script>
   </body>
